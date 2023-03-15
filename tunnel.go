@@ -1,6 +1,7 @@
 package gosshtunnel
 
 import (
+	"encoding/json"
 	"io"
 	"log"
 	"net"
@@ -16,11 +17,10 @@ import (
 // remoteAddrString = "localhost:9999"
 
 type Config struct {
-	Username         string
-	Password         string
 	ServerAddrString string
 	LocalAddrString  string
 	RemoteAddrString string
+	PrivateKeyPath   string
 	sshConfig        *ssh.ClientConfig
 }
 
@@ -51,30 +51,34 @@ func tunnel(localConn net.Conn, config Config) {
 	}()
 }
 
-func GetConfig() Config {
+func GetConfig() (config Config) {
 	var hostKey ssh.PublicKey
-	key, err := os.ReadFile("/home/user/.ssh/id_rsa")
+	databytes, err := os.ReadFile("./config.json")
+	if err != nil {
+		panic(err)
+	}
+	err = json.Unmarshal(databytes, &config)
+	if err != nil {
+		panic(err)
+	}
+	key, err := os.ReadFile(config.PrivateKeyPath)
 	if err != nil {
 		log.Fatalf("unable to read private key: %v", err)
 	}
-
 	// Create the Signer for this private key.
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
 		log.Fatalf("unable to parse private key: %v", err)
 	}
-
-	return Config{
-		sshConfig: &ssh.ClientConfig{
-			User: "user",
-			Auth: []ssh.AuthMethod{
-				// Use the PublicKeys method for remote authentication.
-				ssh.PublicKeys(signer),
-			},
-			HostKeyCallback: ssh.FixedHostKey(hostKey),
+	config.sshConfig = &ssh.ClientConfig{
+		User: "user",
+		Auth: []ssh.AuthMethod{
+			// Use the PublicKeys method for remote authentication.
+			ssh.PublicKeys(signer),
 		},
+		HostKeyCallback: ssh.FixedHostKey(hostKey),
 	}
-
+	return config
 }
 
 func StartTunnel(config Config) {
