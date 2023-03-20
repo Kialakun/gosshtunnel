@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -26,32 +27,35 @@ type Config struct {
 	sshConfig        *ssh.ClientConfig
 }
 
-func tunnel(localConn net.Conn, config Config) {
-	// Setup connection to the SSH server
-	sshClientConn, err := ssh.Dial("tcp", config.ServerAddrString, config.sshConfig)
-	if err != nil {
-		panic(err)
-	}
+func tunnel(sshClient *ssh.Client, localConn net.Conn, config Config) {
 	// Setup the connection to the service running on SSH server
-	sshConn, err := sshClientConn.Dial("tcp", config.RemoteAddrString)
+	sshConn, err := sshClient.Dial("tcp", config.RemoteAddrString)
 	if err != nil {
-		panic(err)
+		localConn.Close()
+		log.Println(err)
+		return
 	}
+	wg := sync.WaitGroup{}
+	wg.Add(2)
 	// Copy local stream to ssh
 	go func() {
 		_, err = io.Copy(sshConn, localConn)
 		if err != nil {
-			log.Panic("io.Copy localConn -> sshConn failed:", err)
+			panic(err)
 		}
+		wg.Done()
 	}()
 
 	// Copy ssh stream to local
 	go func() {
 		_, err = io.Copy(localConn, sshConn)
 		if err != nil {
-			log.Panic("io.Copy sshConn -> localConn failed:", err)
+			panic(err)
 		}
+		wg.Done()
 	}()
+	wg.Wait()
+	sshConn.Close()
 }
 
 func GetConfig() (config Config) {
@@ -93,13 +97,19 @@ func StartTunnel(config Config) {
 	if err != nil {
 		panic(err)
 	}
+	// Setup client to the SSH server
+	sshClient, err := ssh.Dial("tcp", config.ServerAddrString, config.sshConfig)
+	if err != nil {
+		panic(err)
+	}
+
 	for {
 		// Setup localConn (type net.Conn)
 		localConn, err := localListener.Accept()
 		if err != nil {
 			panic(err)
 		}
-		go tunnel(localConn, config)
+		go tunnel(sshClient, localConn, config)
 	}
 }
 
