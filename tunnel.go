@@ -32,7 +32,7 @@ func tunnel(sshClient *ssh.Client, localConn net.Conn, config Config) {
 	sshConn, err := sshClient.Dial("tcp", config.RemoteAddrString)
 	if err != nil {
 		localConn.Close()
-		log.Println(err)
+		log.Println("WARN:", err)
 		return
 	}
 	wg := sync.WaitGroup{}
@@ -41,7 +41,7 @@ func tunnel(sshClient *ssh.Client, localConn net.Conn, config Config) {
 	go func() {
 		_, err = io.Copy(sshConn, localConn)
 		if err != nil {
-			panic(err)
+			log.Println("WARN:", err)
 		}
 		wg.Done()
 	}()
@@ -50,7 +50,7 @@ func tunnel(sshClient *ssh.Client, localConn net.Conn, config Config) {
 	go func() {
 		_, err = io.Copy(localConn, sshConn)
 		if err != nil {
-			panic(err)
+			log.Println("WARN:", err)
 		}
 		wg.Done()
 	}()
