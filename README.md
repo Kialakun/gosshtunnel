@@ -1,2 +1,2 @@
 # gosshtunnel
- Goland SSH Tunnel
+ Golang SSH Tunnel
