@@ -1,2 +1,2 @@
 # gosshtunnel
- Golang SSH Tunnel
+An SSH Tunnel built in Golang. 
